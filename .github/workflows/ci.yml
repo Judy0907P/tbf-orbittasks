@@ -37,6 +37,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
           # No `cache: npm` here on purpose — Workshop 3 Step 1 adds it.
 
       - name: Install dependencies
