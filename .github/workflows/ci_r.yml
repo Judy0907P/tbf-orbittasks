@@ -1,0 +1,132 @@
+# OrbitTasks CI — optimized (W3).
+#
+# Restructured from the single serial job into parallel matrix jobs:
+#   1. Dependency caching        (cache: npm in setup-node)              [step 1]
+#   2. Incremental TypeScript    (tsconfig + .tsbuildinfo cache)         [step 2]
+#   3. Coverage off the PR path  (nightly: .github/workflows/coverage.yml)[step 3]
+#   4. Parallel Jest workers     (jest.config.js maxWorkers '50%')       [step 4]
+#   6. api / web test jobs run concurrently                             [step 6]
+#   7. api jest suite sharded across 2 runners (it's the long pole)     [step 7]
+#   8. Parallel deploy           (scripts/deploy.sh rsync)              [step 8]
+#
+# Step 5 (mock the SDK clients) lands in Workshop 5 — that's the one that
+# collapses test:api from ~12 min to seconds. These steps get to ~5-7 min.
+
+name: CI
+
+on:
+  push:
+    branches: [main, 'w*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Coordinator: warms the npm cache and gives the matrix jobs a single
+  # upstream `needs:` target. Jobs run on separate runners, so each restores
+  # from the npm cache keyed off the committed package-lock.json.
+  install:
+    name: Warm npm cache (coordinator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+
+  lint-and-typecheck:
+    name: Lint + Type-check
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: '**/.tsbuildinfo'
+          key: tsbuildinfo-${{ hashFiles('**/*.ts') }}
+          restore-keys: |
+            tsbuildinfo-
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+
+  # The api jest suite is the long pole, so we shard it across 2 runners.
+  test-api:
+    name: Test api (shard ${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    needs: install
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Run api tests (sharded)
+        run: |
+          npm test --workspace=apps/api -- \
+            --shard=${{ matrix.shard }}/2
+
+  # The web vitest suite is small (~2-10s); run it as one job in parallel
+  # with test-api. Sharding it would add cold installs to save seconds.
+  test-web:
+    name: Test web
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test --workspace=apps/web
+
+  build:
+    name: Build (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    strategy:
+      matrix:
+        app: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build --workspace=apps/${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/dist
+          retention-days: 1
+
+  deploy:
+    name: Deploy (simulated)
+    runs-on: ubuntu-latest
+    needs: [test-api, test-web, build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: apps
+          merge-multiple: false
+      - run: npm run deploy
