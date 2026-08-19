@@ -1,65 +1,126 @@
-# OrbitTasks CI — Baseline workflow.
+# OrbitTasks CI — optimized (W3).
 #
-# NOTE for fellows:
-# This workflow is DELIBERATELY slow. It is what OrbitTasks would have
-# inherited if the engineering team had set up CI three years ago and
-# never revisited it. Workshop 3 students improve this file in place,
-# one optimization at a time, with the recipe in
-# workshops/03-cicd/optimization-recipe.md.
+# Restructured from the single serial job into parallel matrix jobs:
+#   1. Dependency caching        (cache: npm in setup-node)              [step 1]
+#   2. Incremental TypeScript    (tsconfig + .tsbuildinfo cache)         [step 2]
+#   3. Coverage off the PR path  (nightly: .github/workflows/coverage.yml)[step 3]
+#   4. Parallel Jest workers     (jest.config.js maxWorkers '50%')       [step 4]
+#   6. api / web test jobs run concurrently                             [step 6]
+#   7. api / web test jobs run concurrently (no sharding for now)     [step 7]
+#   8. Parallel deploy           (scripts/deploy.sh rsync)              [step 8]
 #
-# What's slow on purpose, in this file specifically:
-#   - No dependency caching (no `cache: npm`).
-#   - No matrix strategy (api and web run sequentially in one job).
-#   - No sharding (test files run one after another).
-#   - No incremental TypeScript build (tsconfig also enforces this).
-#   - Coverage is collected on every PR (jest.config.js enforces this).
-#   - Deploy script copies files one at a time (scripts/deploy.sh).
-#
-# Each of those is fixed by a corresponding step in the recipe doc.
+# Step 5 (mock the SDK clients) lands in Workshop 5 — that's the one that
+# collapses test:api from ~12 min to seconds. These steps get to ~5-7 min.
 
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'w*']
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  ci:
-    name: Build, lint, test, deploy
+  # Coordinator: warms the npm cache and gives the matrix jobs a single
+  # upstream `needs:` target. Jobs run on separate runners, so each restores
+  # from the npm cache keyed off the committed package-lock.json.
+  install:
+    name: Warm npm cache (coordinator)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          # No `cache: npm` here on purpose — Workshop 3 Step 1 adds it.
+      - run: npm ci --no-audit --no-fund
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+  lint-and-typecheck:
+    name: Lint + Type-check
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: '**/.tsbuildinfo'
+          key: tsbuildinfo-${{ hashFiles('**/*.ts') }}
+          restore-keys: |
+            tsbuildinfo-
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
 
-      - name: Lint
-        run: npm run lint
+  # The api jest suite is the long pole. For now, run it on a single runner.
+  test-api:
+    name: Test api
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Run api tests
+        run: npm test --workspace=apps/api
 
-      - name: Type-check
-        run: npm run typecheck
+  # The web vitest suite is small (~2-10s); run it as one job in parallel
+  # with test-api.
+  test-web:
+    name: Test web
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test --workspace=apps/web
 
-      - name: Test (api)
-        run: npm run test --workspace=apps/api
+  build:
+    name: Build (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    strategy:
+      matrix:
+        app: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build --workspace=apps/${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/dist
+          retention-days: 1
 
-      - name: Test (web)
-        run: npm run test --workspace=apps/web
-
-      - name: Build (api)
-        run: npm run build --workspace=apps/api
-
-      - name: Build (web)
-        run: npm run build --workspace=apps/web
-
-      - name: Deploy (simulated)
-        run: npm run deploy
+  deploy:
+    name: Deploy (simulated)
+    runs-on: ubuntu-latest
+    needs: [test-api, test-web, build]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: apps
+          merge-multiple: false
+      - run: npm run deploy
