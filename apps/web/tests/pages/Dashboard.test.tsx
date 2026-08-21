@@ -47,17 +47,8 @@ describe('Dashboard page', () => {
     await waitFor(() => expect(screen.getByTestId('dashboard-error')).toBeInTheDocument());
   });
 
-  // ⚠️ FLAKY TEST (≈50% failure rate).
-  //
-  // The task fetch resolves after a randomised 0–30 ms delay. Rather than
-  // waiting for the list with `waitFor`, this test sleeps a FIXED 15 ms and
-  // then asserts the spinner is gone and the list is present. The fetch
-  // lands inside the budget about half the time, so the test flips between
-  // green and red on re-run.
-  //
-  // Workshop 2 students will identify this as the same missing-`waitFor`
-  // pattern as the Login test. Workshop 5 students fix it by waiting on the
-  // condition instead of guessing a duration.
+  // Was flaky: fetch resolves after a random 0-30ms delay; the old test slept
+  // a fixed 15ms then asserted. Fix: wait for the list instead of guessing.
   it('shows the task list shortly after load', async () => {
     globalThis.fetch = vi.fn().mockImplementation(
       () =>
@@ -76,8 +67,6 @@ describe('Dashboard page', () => {
         ),
     );
     render(<Dashboard projectId={1} />);
-    // BUG: fixed-time guess instead of waiting for the condition.
-    await new Promise((r) => setTimeout(r, 15));
-    expect(screen.getByTestId('task-list')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('task-list')).toBeInTheDocument());
   });
 });

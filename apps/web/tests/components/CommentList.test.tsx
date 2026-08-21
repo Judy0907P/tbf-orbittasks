@@ -17,35 +17,19 @@ describe('CommentList', () => {
     expect(screen.getAllByText(/Looks good|Ship it/)).toHaveLength(2);
   });
 
-  // ⚠️ FLAKY TEST (≈50% failure rate).
-  //
-  // `formatRelativeDays` rounds (createdAt - now) to whole days. This
-  // comment is dated almost exactly half a day in the past, so the
-  // rounding lands on 0 ("today") or -1 ("yesterday") depending on the
-  // sub-second wall-clock at the instant the component reads `Date.now()`.
-  // A few milliseconds of jitter is enough to flip the result, so the
-  // test passes about half the time and fails the other half.
-  //
-  // Workshop 2 students will identify this as time-dependent: the test
-  // reads the real clock instead of a fixed reference. Workshop 5
-  // students fix it by injecting `now` as a prop, or by freezing the
-  // clock with `vi.useFakeTimers()`, and the assertion becomes stable.
-  //
-  // The remediation gets walked through in Workshop 5's live-demo.
-  it('renders a relative timestamp', () => {
-    const HALF_DAY_MS = 12 * 60 * 60 * 1000;
-    // Sit right on the rounding boundary, with a little random jitter so
-    // the rounded day count flips between 0 and -1 from run to run.
-    const jitter = (Math.random() - 0.5) * 60 * 1000; // ±30s
-    const createdAt = new Date(Date.now() - HALF_DAY_MS + jitter);
+  // Was flaky: dated a comment ~half a day back and read the real clock, so
+  // rounding flipped between "today" and "yesterday". Fix: inject a fixed `now`.
+  it('renders a relative timestamp deterministically', () => {
+    const now = new Date('2026-01-15T12:00:00.000Z');
+    const createdAt = new Date(now.getTime() - 11 * 60 * 60 * 1000); // 11h earlier, same day
     render(
       <CommentList
+        now={now}
         comments={[
           { id: 1, authorName: 'Alice', body: 'Recent comment', createdAt: createdAt.toISOString() },
         ]}
       />,
     );
-    // Asserts a specific relative-time string. Clock drift is the lesson.
     expect(screen.getByText('today')).toBeInTheDocument();
   });
 });

@@ -56,21 +56,8 @@ describe('Login page', () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
   });
 
-  // ⚠️ FLAKY TEST (≈50% failure rate).
-  //
-  // The login request resolves after a randomised 0–30 ms delay (real
-  // networks are never instant). Instead of waiting for the result with
-  // `waitFor`, this test sleeps a FIXED 15 ms and then asserts. When the
-  // request happens to land inside the budget the assertion passes; when
-  // it lands after, `onSuccess` hasn't fired yet and the test fails. The
-  // 15 ms budget sits in the middle of the 0–30 ms window, so it flips
-  // about half the time.
-  //
-  // Workshop 2 students will identify this as a missing-`waitFor` race:
-  // the test guesses how long async work takes instead of waiting for the
-  // condition. Workshop 5 students fix it together with the Fellow during
-  // the live-demo by replacing the fixed sleep with
-  // `await waitFor(() => expect(onSuccess).toHaveBeenCalled())`.
+  // Was flaky: request resolves after a random 0-30ms delay; the old test
+  // slept a fixed 15ms then asserted. Fix: wait for the condition with waitFor.
   it('signs in once the request resolves', async () => {
     globalThis.fetch = vi.fn().mockImplementation(
       () =>
@@ -94,8 +81,6 @@ describe('Login page', () => {
     fireEvent.change(screen.getByLabelText('email'), { target: { value: 'a@b.co' } });
     fireEvent.change(screen.getByLabelText('password'), { target: { value: 'hunter22' } });
     fireEvent.click(screen.getByTestId('login-submit'));
-    // BUG: fixed-time guess instead of waiting for the condition.
-    await new Promise((r) => setTimeout(r, 15));
-    expect(onSuccess).toHaveBeenCalled();
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
   });
 });
