@@ -22,10 +22,10 @@ module.exports = {
   testMatch: ['**/*.test.ts'],
 
   // SLOW: only one worker.
-  maxWorkers: 1,
+  maxWorkers: '50%',
 
   // SLOW: coverage on every run.
-  collectCoverage: true,
+  collectCoverage: false,
   coverageDirectory: '<rootDir>/coverage',
   coverageReporters: ['text', 'lcov'],
 
