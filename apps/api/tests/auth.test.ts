@@ -1,4 +1,9 @@
-import { registerUser, loginUser, verifyToken } from '../src/services/auth.service';
+import {
+  registerUser,
+  loginUser,
+  verifyToken,
+  getUserById,
+} from '../src/services/auth.service';
 import { db } from '../src/db/client';
 
 describe('auth service', () => {
@@ -64,7 +69,38 @@ describe('auth service', () => {
     );
   });
 
+  it('verifyToken returns userId and role for a valid token', async () => {
+    const { user, token } = await registerUser({
+      email: 'dave@example.com',
+      name: 'Dave',
+      password: 'hunter22!',
+    });
+    const verified = verifyToken(token);
+    expect(verified.userId).toBe(user.id);
+    expect(verified.role).toBe(user.role);
+  });
+
   it('rejects invalid token in verifyToken', () => {
     expect(() => verifyToken('not-a-real-token')).toThrow();
+  });
+
+  it('getUserById returns the user without passwordHash', async () => {
+    const { user } = await registerUser({
+      email: 'eve@example.com',
+      name: 'Eve',
+      password: 'hunter22!',
+    });
+    const found = getUserById(user.id);
+    expect(found).toEqual({
+      id: user.id,
+      email: 'eve@example.com',
+      name: 'Eve',
+      role: 'member',
+    });
+    expect(found).not.toHaveProperty('passwordHash');
+  });
+
+  it('getUserById returns undefined when missing', () => {
+    expect(getUserById(999)).toBeUndefined();
   });
 });
