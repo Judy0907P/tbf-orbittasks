@@ -1,7 +1,9 @@
+jest.mock('../../src/clients/search.client');
+
 import { SearchService } from '../../src/services/search.service';
 import { db } from '../../src/db/client';
 
-describe('search service (integration — hits mock server)', () => {
+describe('search service', () => {
   let service: SearchService;
 
   beforeEach(() => {

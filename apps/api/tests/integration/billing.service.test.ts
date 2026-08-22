@@ -1,7 +1,9 @@
+jest.mock('../../src/clients/billing.client');
+
 import { BillingService } from '../../src/services/billing.service';
 import { db } from '../../src/db/client';
 
-describe('billing service (integration — hits mock server)', () => {
+describe('billing service', () => {
   let service: BillingService;
 
   beforeEach(() => {

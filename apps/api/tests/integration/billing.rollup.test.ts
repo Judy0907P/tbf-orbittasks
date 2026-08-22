@@ -1,16 +1,11 @@
+jest.mock('../../src/clients/billing.client');
+
 import { BillingService } from '../../src/services/billing.service';
 import { db } from '../../src/db/client';
 
-// Month-end billing rollups. Each rollup enrolls a cohort of customers and
-// then charges every one of them — two real round-trips per customer to the
-// billing provider (the mock server). A few dozen customers is enough to make
-// each test take tens of seconds; nothing here sleeps.
-//
-// This is one of the biggest contributors to the slow `test:api` stage that
-// students measure in Workshop 1 and dissect in Workshop 2. The fix in
-// Workshop 5 is to mock BillingClient so unit tests don't hit the network at
-// all; Workshop 3 also shards the suite so cohorts run in parallel.
-describe('billing month-end rollup (integration — hits mock server)', () => {
+// Month-end billing rollups. BillingClient is manually mocked so enroll/charge
+// stay in-process instead of round-tripping the mock HTTP server.
+describe('billing month-end rollup', () => {
   beforeEach(() => {
     db.reset();
   });

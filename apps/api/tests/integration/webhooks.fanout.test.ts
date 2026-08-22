@@ -1,11 +1,10 @@
+jest.mock('../../src/clients/webhooks.client');
+
 import { WebhooksService } from '../../src/services/webhooks.service';
 import { db } from '../../src/db/client';
 
-// Webhook fan-out. Dispatching an event delivers it to every subscriber, one
-// real round-trip each — and webhook delivery is the slowest mock endpoint
-// (it models an external server doing work). Fanning out to a few dozen
-// subscribers dominates the test's runtime.
-describe('webhook fan-out (integration — hits mock server)', () => {
+// Webhook fan-out. WebhooksClient is manually mocked so deliveries stay in-process.
+describe('webhook fan-out', () => {
   beforeEach(() => {
     db.reset();
   });

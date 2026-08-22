@@ -1,6 +1,8 @@
+jest.mock('../../src/clients/audit.client');
+
 import { AuditService } from '../../src/services/audit.service';
 
-describe('audit service (integration — hits mock server)', () => {
+describe('audit service', () => {
   it('buffers events until threshold', () => {
     const a = new AuditService(undefined, 100);
     a.record({ type: 'task.created', actorId: 1, resource: 'task', resourceId: 1 });

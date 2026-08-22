@@ -1,3 +1,5 @@
+jest.mock('../src/clients/billing.client');
+
 import { db } from '../src/db/client';
 import { BillingService } from '../src/services/billing.service';
 
@@ -6,14 +8,8 @@ describe('reports', () => {
     db.reset();
   });
 
-  // THE SLOW TEST. This test makes a long sequence of real HTTP calls to
-  // the mock billing service. Each call is a few hundred milliseconds of
-  // legitimate network round-trip. Strung together, the test takes 10-20
-  // seconds — and there are no `sleep()` calls anywhere.
-  //
-  // Workshop 2 students will identify this as a slow test.
-  // Workshop 5 students will replace BillingClient with a manual mock
-  // and watch the duration collapse to near-zero.
+  // BillingClient is manually mocked — enroll/charge stay in-process
+  // instead of round-tripping the mock HTTP server.
   it('rolls up end-of-month billing across many customers', async () => {
     const billing = new BillingService();
     const userCount = 25; // realistic mid-sized cohort

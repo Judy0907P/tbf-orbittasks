@@ -1,6 +1,8 @@
+jest.mock('../../src/clients/email.client');
+
 import { EmailService } from '../../src/services/email.service';
 
-describe('email service (integration — hits mock server)', () => {
+describe('email service', () => {
   const service = new EmailService();
 
   it('sends a welcome email and returns a message id', async () => {

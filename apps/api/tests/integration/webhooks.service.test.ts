@@ -1,7 +1,9 @@
+jest.mock('../../src/clients/webhooks.client');
+
 import { WebhooksService } from '../../src/services/webhooks.service';
 import { db } from '../../src/db/client';
 
-describe('webhooks service (integration — hits mock server)', () => {
+describe('webhooks service', () => {
   let service: WebhooksService;
 
   beforeEach(() => {

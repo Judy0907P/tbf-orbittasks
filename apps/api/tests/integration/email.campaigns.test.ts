@@ -1,10 +1,9 @@
+jest.mock('../../src/clients/email.client');
+
 import { EmailService } from '../../src/services/email.service';
 
-// Bulk email campaigns. Every message is a separate real round-trip to the
-// email provider (the mock server) — EmailClient.sendBatch sends them one at
-// a time, on purpose. Sending to a few hundred recipients is legitimately
-// slow, which is exactly what students profile in Workshop 2.
-describe('email campaigns (integration — hits mock server)', () => {
+// Bulk email campaigns. EmailClient is manually mocked so sends stay in-process.
+describe('email campaigns', () => {
   const recipients = (n: number) => Array.from({ length: n }, (_, i) => `user${i}@example.com`);
 
   it('sends the weekly digest to 160 users', async () => {

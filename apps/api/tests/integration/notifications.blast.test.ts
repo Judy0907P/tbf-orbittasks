@@ -1,9 +1,9 @@
+jest.mock('../../src/clients/notifications.client');
+
 import { NotificationsClient } from '../../src/clients/notifications.client';
 
-// Notification blasts. Each notification is a real round-trip to the
-// notifications provider (the mock server). Posting one per recipient — the
-// naive approach the app currently takes — adds up quickly.
-describe('notification blast (integration — hits mock server)', () => {
+// Notification blasts. NotificationsClient is manually mocked so posts stay in-process.
+describe('notification blast', () => {
   it('posts 160 task-assignment notifications', async () => {
     const client = new NotificationsClient();
     for (let i = 0; i < 160; i++) {
